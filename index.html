@@ -1,0 +1,1060 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Fluidic Foundry | 微流控液滴计算与毛细逻辑工场</title>
+  <style>
+    :root {
+      --bg: #090d16;
+      --panel: #111827;
+      --panel-border: #1f293d;
+      --accent-cyan: #38bdf8;
+      --accent-rose: #f43f5e;
+      --accent-emerald: #10b981;
+      --accent-amber: #f59e0b;
+      --text-main: #f1f5f9;
+      --text-muted: #94a3b8;
+      --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+    }
+
+    body {
+      background-color: var(--bg);
+      color: var(--text-main);
+      font-family: var(--font-sans);
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    header {
+      background: rgba(17, 24, 39, 0.85);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--panel-border);
+      padding: 12px 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      z-index: 10;
+    }
+
+    .title-group {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+
+    .title-group h1 {
+      font-size: 1.15rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      background: linear-gradient(135deg, #38bdf8, #818cf8);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .badge {
+      font-size: 0.72rem;
+      background: rgba(56, 189, 248, 0.12);
+      border: 1px solid rgba(56, 189, 248, 0.3);
+      color: var(--accent-cyan);
+      padding: 2px 8px;
+      border-radius: 9999px;
+      font-family: var(--font-mono);
+      font-weight: 500;
+    }
+
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .circuit-select {
+      background: #1e293b;
+      color: var(--text-main);
+      border: 1px solid var(--panel-border);
+      padding: 6px 12px;
+      border-radius: 6px;
+      font-size: 0.85rem;
+      outline: none;
+      cursor: pointer;
+    }
+
+    .btn {
+      background: #1e293b;
+      color: var(--text-main);
+      border: 1px solid var(--panel-border);
+      padding: 6px 14px;
+      border-radius: 6px;
+      font-size: 0.82rem;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.15s ease;
+    }
+
+    .btn:hover {
+      background: #334155;
+      border-color: #475569;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, #0284c7, #2563eb);
+      border: none;
+      color: #fff;
+    }
+    .btn-primary:hover {
+      background: linear-gradient(135deg, #0369a1, #1d4ed8);
+    }
+
+    .btn-rose {
+      background: linear-gradient(135deg, #e11d48, #be123c);
+      border: none;
+      color: #fff;
+    }
+    .btn-rose:hover {
+      background: linear-gradient(135deg, #be123c, #9f1239);
+    }
+
+    main {
+      flex: 1;
+      display: flex;
+      position: relative;
+      overflow: hidden;
+    }
+
+    #canvas-container {
+      flex: 1;
+      position: relative;
+      background: radial-gradient(circle at 50% 50%, #0d1527 0%, #060913 100%);
+    }
+
+    canvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+
+    /* Sidebar Telemetry & Controls */
+    aside {
+      width: 340px;
+      background: rgba(17, 24, 39, 0.92);
+      backdrop-filter: blur(12px);
+      border-left: 1px solid var(--panel-border);
+      display: flex;
+      flex-direction: column;
+      overflow-y: auto;
+      z-index: 10;
+    }
+
+    .panel-section {
+      padding: 18px 20px;
+      border-bottom: 1px solid var(--panel-border);
+    }
+
+    .section-title {
+      font-size: 0.78rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-muted);
+      margin-bottom: 12px;
+      font-weight: 700;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .truth-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.8rem;
+      font-family: var(--font-mono);
+      text-align: center;
+    }
+
+    .truth-table th, .truth-table td {
+      padding: 6px 4px;
+      border: 1px solid var(--panel-border);
+    }
+
+    .truth-table th {
+      background: rgba(255, 255, 255, 0.04);
+      color: var(--text-muted);
+      font-weight: 600;
+    }
+
+    .truth-table tr.active-row {
+      background: rgba(56, 189, 248, 0.15);
+      color: var(--accent-cyan);
+      font-weight: 700;
+    }
+
+    .metric-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+
+    .metric-card {
+      background: #182234;
+      border: 1px solid var(--panel-border);
+      border-radius: 8px;
+      padding: 10px 12px;
+    }
+
+    .metric-label {
+      font-size: 0.7rem;
+      color: var(--text-muted);
+      margin-bottom: 4px;
+    }
+
+    .metric-val {
+      font-family: var(--font-mono);
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: var(--accent-cyan);
+    }
+
+    .control-row {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      margin-bottom: 14px;
+    }
+
+    .control-label-row {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.78rem;
+    }
+
+    .slider {
+      -webkit-appearance: none;
+      width: 100%;
+      height: 5px;
+      border-radius: 3px;
+      background: #25334d;
+      outline: none;
+    }
+
+    .slider::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 15px;
+      height: 15px;
+      border-radius: 50%;
+      background: var(--accent-cyan);
+      cursor: pointer;
+    }
+
+    .log-box {
+      font-family: var(--font-mono);
+      font-size: 0.72rem;
+      background: #090e18;
+      padding: 10px;
+      border-radius: 6px;
+      border: 1px solid var(--panel-border);
+      height: 130px;
+      overflow-y: auto;
+      color: #cbd5e1;
+      line-height: 1.5;
+    }
+
+    .log-entry {
+      margin-bottom: 4px;
+    }
+    .log-time {
+      color: var(--text-muted);
+    }
+    .log-highlight {
+      color: var(--accent-cyan);
+    }
+    .log-inversion {
+      color: var(--accent-rose);
+      font-weight: 700;
+    }
+
+    /* Floating Canvas Overlay Legend */
+    .canvas-legend {
+      position: absolute;
+      bottom: 20px;
+      left: 20px;
+      background: rgba(17, 24, 39, 0.85);
+      backdrop-filter: blur(8px);
+      border: 1px solid var(--panel-border);
+      border-radius: 8px;
+      padding: 12px 16px;
+      font-size: 0.75rem;
+      pointer-events: none;
+      display: flex;
+      gap: 16px;
+    }
+
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .legend-color {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="title-group">
+      <h1>Fluidic Foundry</h1>
+      <span class="badge">Microfluidic Bubble Logic & Computing</span>
+    </div>
+
+    <div class="header-actions">
+      <select id="circuit-select" class="circuit-select">
+        <option value="and_or">拓扑 1: AND / OR 复合逻辑门 (Bifurcation)</option>
+        <option value="not_gate">拓扑 2: NOT 反相器与侧向时钟偏转 (Inverter)</option>
+        <option value="half_adder">拓扑 3: 1-Bit 全流体半加器 (Half Adder)</option>
+      </select>
+
+      <button id="btn-inject-a" class="btn btn-primary">注入输入 A (Bit 1)</button>
+      <button id="btn-inject-b" class="btn btn-rose">注入输入 B (Bit 1)</button>
+      <button id="btn-inject-both" class="btn">双路并发 (A=1, B=1)</button>
+      <button id="btn-sound" class="btn">🔊 音效: 开</button>
+      <button id="btn-clear" class="btn">清空芯片</button>
+    </div>
+  </header>
+
+  <main>
+    <div id="canvas-container">
+      <canvas id="sim-canvas"></canvas>
+
+      <div class="canvas-legend">
+        <div class="legend-item">
+          <div class="legend-color" style="background: #38bdf8;"></div>
+          <span>液滴 A (Bit A)</span>
+        </div>
+        <div class="legend-item">
+          <div class="legend-color" style="background: #f43f5e;"></div>
+          <span>液滴 B (Bit B)</span>
+        </div>
+        <div class="legend-item">
+          <div class="legend-color" style="background: #a855f7;"></div>
+          <span>时钟流 (Clock Stream)</span>
+        </div>
+        <div class="legend-item">
+          <div class="legend-color" style="background: linear-gradient(90deg, #ec4899, #06b6d4);"></div>
+          <span>流体水力压强梯度 (Pascals)</span>
+        </div>
+      </div>
+    </div>
+
+    <aside>
+      <!-- Realtime Truth Table -->
+      <div class="panel-section">
+        <div class="section-title">
+          <span>逻辑真值与输出捕获</span>
+          <span id="current-state-badge" class="badge">A=0, B=0</span>
+        </div>
+        <table class="truth-table" id="truth-table">
+          <thead>
+            <tr><th>A</th><th>B</th><th id="th-out1">OR</th><th id="th-out2">AND</th><th>物理机制</th></tr>
+          </thead>
+          <tbody id="truth-tbody">
+            <!-- populated by JS -->
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Telemetry Metrics -->
+      <div class="panel-section">
+        <div class="section-title">水动力物理遥测 (Hydrodynamics)</div>
+        <div class="metric-grid">
+          <div class="metric-card">
+            <div class="metric-label">主流入压强 ΔP</div>
+            <div class="metric-val" id="val-pressure">1.20 kPa</div>
+          </div>
+          <div class="metric-card">
+            <div class="metric-label">雷诺数 Re (Stokes)</div>
+            <div class="metric-val" id="val-re">0.84</div>
+          </div>
+          <div class="metric-card">
+            <div class="metric-label">毛细数 Ca</div>
+            <div class="metric-val" id="val-ca">3.8e-4</div>
+          </div>
+          <div class="metric-card">
+            <div class="metric-label">分支阻力反转比</div>
+            <div class="metric-val" id="val-ratio" style="color: #10b981;">1.55x</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Parameter Sliders -->
+      <div class="panel-section">
+        <div class="section-title">流控物理参数微调</div>
+        <div class="control-row">
+          <div class="control-label-row">
+            <span>入口驱动压强 (Driving Pressure)</span>
+            <span id="label-pressure" class="metric-val" style="font-size:0.8rem;">1200 Pa</span>
+          </div>
+          <input type="range" id="slider-pressure" class="slider" min="400" max="3000" step="50" value="1200">
+        </div>
+
+        <div class="control-row">
+          <div class="control-label-row">
+            <span>液滴流阻增量比 κ (Excess Resistance)</span>
+            <span id="label-ratio" class="metric-val" style="font-size:0.8rem;">2.50x</span>
+          </div>
+          <input type="range" id="slider-ratio" class="slider" min="1.0" max="5.0" step="0.1" value="2.5">
+        </div>
+
+        <div class="control-row">
+          <div class="control-label-row">
+            <span>仿真流速倍率</span>
+            <span id="label-speed" class="metric-val" style="font-size:0.8rem;">1.0x</span>
+          </div>
+          <input type="range" id="slider-speed" class="slider" min="0.2" max="2.5" step="0.1" value="1.0">
+        </div>
+      </div>
+
+      <!-- Event Log -->
+      <div class="panel-section" style="flex:1;">
+        <div class="section-title">事件流与相变日志</div>
+        <div class="log-box" id="event-log">
+          <div class="log-entry"><span class="log-time">[00.00]</span> 芯片拓扑初始化就绪。低雷诺数蠕动流场建立。</div>
+        </div>
+      </div>
+    </aside>
+  </main>
+
+  <script>
+    // --- Audio Synthesis via Web Audio API ---
+    class SoundEngine {
+      constructor() {
+        this.ctx = null;
+        this.enabled = true;
+      }
+      init() {
+        if (!this.ctx) {
+          const AudioContext = window.AudioContext || window.webkitAudioContext;
+          this.ctx = new AudioContext();
+        }
+      }
+      playPloosh(freq = 420) {
+        if (!this.enabled) return;
+        this.init();
+        if (this.ctx.state === 'suspended') this.ctx.resume();
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(freq, this.ctx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(freq * 1.8, this.ctx.currentTime + 0.08);
+        gain.gain.setValueAtTime(0.18, this.ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.08);
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start();
+        osc.stop(this.ctx.currentTime + 0.09);
+      }
+      playChime(freq = 880) {
+        if (!this.enabled) return;
+        this.init();
+        if (this.ctx.state === 'suspended') this.ctx.resume();
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(freq, this.ctx.currentTime);
+        gain.gain.setValueAtTime(0.15, this.ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.25);
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start();
+        osc.stop(this.ctx.currentTime + 0.26);
+      }
+    }
+    const sound = new SoundEngine();
+
+    // --- Hydrodynamic Network Simulation in JS ---
+    class Channel {
+      constructor(id, fromNode, toNode, length, width, height) {
+        this.id = id;
+        this.from = fromNode;
+        this.to = toNode;
+        this.length = length;
+        this.width = width;
+        this.height = height;
+        this.baseResistance = this.calcResistance();
+        this.currentResistance = this.baseResistance;
+        this.droplets = [];
+        this.flowRate = 0; // m^3/s
+      }
+      calcResistance() {
+        const mu = 1.0e-3;
+        const w = Math.max(this.width, this.height);
+        const h = Math.min(this.width, this.height);
+        const alpha = h / w;
+        const factor = Math.max(0.05, 1.0 - 0.630 * alpha);
+        return (12.0 * mu * this.length) / (w * (h ** 3) * factor);
+      }
+      updateResistance(ratio) {
+        if (this.droplets.length === 0) {
+          this.currentResistance = this.baseResistance;
+        } else {
+          let totalLen = 0;
+          for (let d of this.droplets) totalLen += d.length;
+          const confinement = Math.min(1.0, totalLen / this.length);
+          this.currentResistance = this.baseResistance * (1.0 + ratio * confinement);
+        }
+      }
+    }
+
+    class CircuitModel {
+      constructor(type, drivingP, ratio) {
+        this.type = type;
+        this.drivingP = drivingP;
+        this.ratio = ratio;
+        this.nodes = {};
+        this.channels = {};
+        this.droplets = [];
+        this.nextDropId = 1;
+        this.time = 0;
+        this.outEvents = {};
+        this.buildCircuit();
+      }
+
+      addNode(id, x, y, fixedP = null) {
+        this.nodes[id] = { id, x, y, fixedP, p: fixedP || 0, adj: [] };
+      }
+
+      addChannel(id, u, v, len, w, h) {
+        const ch = new Channel(id, u, v, len, w, h);
+        this.channels[id] = ch;
+        this.nodes[u].adj.push(id);
+        this.nodes[v].adj.push(id);
+      }
+
+      buildCircuit() {
+        this.nodes = {};
+        this.channels = {};
+        this.droplets = [];
+        this.outEvents = {};
+        const h = 50e-6;
+        const baseW = 50e-6;
+
+        if (this.type === 'and_or') {
+          // AND / OR Gate
+          this.addNode('in_a', 150, 180, this.drivingP);
+          this.addNode('in_b', 150, 360, this.drivingP);
+          this.addNode('j_in', 360, 270, null);
+          this.addNode('out_or', 620, 190, 0);
+          this.addNode('out_and', 620, 350, 0);
+
+          this.addChannel('ch_in_a', 'in_a', 'j_in', 1.5e-3, baseW, h);
+          this.addChannel('ch_in_b', 'in_b', 'j_in', 1.5e-3, baseW, h);
+          // Branch OR has lower resistance (wider)
+          this.addChannel('ch_branch_or', 'j_in', 'out_or', 2.0e-3, baseW * 1.15, h);
+          // Branch AND has higher resistance (narrower)
+          this.addChannel('ch_branch_and', 'j_in', 'out_and', 2.0e-3, baseW * 0.95, h);
+        } else if (this.type === 'not_gate') {
+          // NOT Inverter
+          this.addNode('in_clk', 150, 200, this.drivingP);
+          this.addNode('in_ctrl', 150, 340, this.drivingP);
+          this.addNode('j_clk', 360, 200, null);
+          this.addNode('j_ctrl', 360, 340, null);
+          this.addNode('out_not', 620, 160, 0);
+          this.addNode('out_dump', 620, 250, 0);
+          this.addNode('out_waste', 620, 340, 0);
+
+          this.addChannel('ch_clk', 'in_clk', 'j_clk', 1.5e-3, baseW, h);
+          this.addChannel('ch_ctrl', 'in_ctrl', 'j_ctrl', 1.5e-3, baseW, h);
+          this.addChannel('ch_bridge', 'j_ctrl', 'j_clk', 1.6e-3, baseW * 0.7, h);
+          this.addChannel('ch_out_not', 'j_clk', 'out_not', 2.0e-3, baseW * 1.15, h);
+          this.addChannel('ch_out_dump', 'j_clk', 'out_dump', 2.0e-3, baseW * 0.95, h);
+          this.addChannel('ch_out_waste', 'j_ctrl', 'out_waste', 2.0e-3, baseW, h);
+        } else if (this.type === 'half_adder') {
+          // Half Adder
+          this.addNode('in_a', 140, 180, this.drivingP);
+          this.addNode('in_b', 140, 360, this.drivingP);
+          this.addNode('j_st1', 320, 270, null);
+          this.addNode('j_sum', 480, 200, null);
+          this.addNode('j_carry', 480, 340, null);
+          this.addNode('out_sum', 640, 200, 0);
+          this.addNode('out_carry', 640, 340, 0);
+
+          this.addChannel('ch_in_a', 'in_a', 'j_st1', 1.5e-3, baseW, h);
+          this.addChannel('ch_in_b', 'in_b', 'j_st1', 1.5e-3, baseW, h);
+          this.addChannel('ch_to_sum', 'j_st1', 'j_sum', 1.5e-3, baseW * 1.15, h);
+          this.addChannel('ch_to_carry', 'j_st1', 'j_carry', 1.5e-3, baseW * 0.95, h);
+          this.addChannel('ch_out_sum', 'j_sum', 'out_sum', 1.5e-3, baseW, h);
+          this.addChannel('ch_out_carry', 'j_carry', 'out_carry', 1.5e-3, baseW, h);
+        }
+
+        this.solveFlow();
+      }
+
+      solveFlow() {
+        // Sync channel resistance
+        for (let cid in this.channels) {
+          this.channels[cid].updateResistance(this.ratio);
+        }
+
+        const unknownNodes = Object.keys(this.nodes).filter(k => this.nodes[k].fixedP === null);
+        const N = unknownNodes.length;
+        if (N === 0) return;
+
+        const idxMap = {};
+        unknownNodes.forEach((id, i) => idxMap[id] = i);
+
+        const A = Array.from({ length: N }, () => Array(N).fill(0));
+        const b = Array(N).fill(0);
+
+        for (let i = 0; i < N; i++) {
+          const uId = unknownNodes[i];
+          const uNode = this.nodes[uId];
+          for (let cid of uNode.adj) {
+            const ch = this.channels[cid];
+            const cond = 1.0 / ch.currentResistance;
+            const vId = ch.from === uId ? ch.to : ch.from;
+            const vNode = this.nodes[vId];
+
+            A[i][i] += cond;
+            if (vNode.fixedP !== null) {
+              b[i] += cond * vNode.fixedP;
+            } else {
+              const j = idxMap[vId];
+              A[i][j] -= cond;
+            }
+          }
+        }
+
+        // Solve A x = b (Gaussian elimination)
+        for (let i = 0; i < N; i++) {
+          let maxRow = i;
+          for (let k = i + 1; k < N; k++) {
+            if (Math.abs(A[k][i]) > Math.abs(A[maxRow][i])) maxRow = k;
+          }
+          [A[i], A[maxRow]] = [A[maxRow], A[i]];
+          [b[i], b[maxRow]] = [b[maxRow], b[i]];
+
+          for (let k = i + 1; k < N; k++) {
+            const factor = A[k][i] / A[i][i];
+            for (let j = i; j < N; j++) A[k][j] -= factor * A[i][j];
+            b[k] -= factor * b[i];
+          }
+        }
+
+        const sol = Array(N).fill(0);
+        for (let i = N - 1; i >= 0; i--) {
+          let s = b[i];
+          for (let j = i + 1; j < N; j++) s -= A[i][j] * sol[j];
+          sol[i] = s / A[i][i];
+          this.nodes[unknownNodes[i]].p = sol[i];
+        }
+
+        // Calculate flow rate
+        for (let cid in this.channels) {
+          const ch = this.channels[cid];
+          const pu = this.nodes[ch.from].p;
+          const pv = this.nodes[ch.to].p;
+          ch.flowRate = (pu - pv) / ch.currentResistance;
+        }
+      }
+
+      spawn(channelId, label, color) {
+        const ch = this.channels[channelId];
+        if (!ch) return;
+        const drop = {
+          id: this.nextDropId++,
+          label,
+          color,
+          channelId,
+          pos: 0.0,
+          length: 1.0e-3,
+          active: true
+        };
+        ch.droplets.push(drop);
+        this.droplets.push(drop);
+        this.solveFlow();
+        sound.playPloosh(label === 'A' ? 440 : (label === 'B' ? 360 : 580));
+        logEvent(`在管道 <b>${channelId}</b> 注入液滴 <b>${label}</b>`);
+      }
+
+      step(dt) {
+        this.time += dt;
+        for (let d of this.droplets) {
+          if (!d.active) continue;
+          const ch = this.channels[d.channelId];
+          const area = ch.width * ch.height;
+          const u = ch.flowRate / area;
+          const v = 1.15 * u; // slip velocity
+
+          d.pos += v * dt;
+
+          if (d.pos >= ch.length) {
+            this.handleArrival(d, ch.to);
+          }
+        }
+      }
+
+      handleArrival(drop, nodeId) {
+        const node = this.nodes[nodeId];
+        const candidates = [];
+        for (let cid of node.adj) {
+          if (cid === drop.channelId) continue;
+          const ch = this.channels[cid];
+          if (ch.from === nodeId && ch.flowRate > 1e-15) {
+            candidates.push({ cid, q: ch.flowRate });
+          }
+        }
+
+        // Remove from old channel
+        const oldCh = this.channels[drop.channelId];
+        oldCh.droplets = oldCh.droplets.filter(x => x.id !== drop.id);
+
+        if (candidates.length === 0) {
+          // Reached outlet terminal
+          drop.active = false;
+          if (!this.outEvents[nodeId]) this.outEvents[nodeId] = [];
+          this.outEvents[nodeId].push({ id: drop.id, label: drop.label, time: this.time });
+          this.solveFlow();
+          sound.playChime(nodeId.includes('and') || nodeId.includes('carry') ? 1046 : 880);
+          logEvent(`液滴 <b>${drop.label}</b> 抵达出口 <span class="log-highlight">${nodeId.toUpperCase()}</span>`);
+          updateTruthUI();
+          return;
+        }
+
+        // Bifurcation rule: Choose maximum flow rate
+        candidates.sort((a, b) => b.q - a.q);
+        const nextCid = candidates[0].cid;
+
+        drop.channelId = nextCid;
+        drop.pos = 0.0;
+        this.channels[nextCid].droplets.push(drop);
+
+        // Immediate flow re-solve
+        this.solveFlow();
+      }
+    }
+
+    // --- Controller & Visualizer ---
+    let circuit = new CircuitModel('and_or', 1200, 2.5);
+    let speedMult = 1.0;
+    const canvas = document.getElementById('sim-canvas');
+    const ctx = canvas.getContext('2d');
+
+    function resizeCanvas() {
+      const container = document.getElementById('canvas-container');
+      canvas.width = container.clientWidth;
+      canvas.height = container.clientHeight;
+    }
+    window.addEventListener('resize', resizeCanvas);
+    resizeCanvas();
+
+    function logEvent(msg) {
+      const box = document.getElementById('event-log');
+      const timeStr = circuit.time.toFixed(2).padStart(5, '0');
+      const div = document.createElement('div');
+      div.className = 'log-entry';
+      div.innerHTML = `<span class="log-time">[${timeStr}]</span> ${msg}`;
+      box.appendChild(div);
+      box.scrollTop = box.scrollHeight;
+    }
+
+    // Particle tracers for streamline effect
+    const particles = Array.from({ length: 45 }, () => ({
+      chId: null,
+      frac: Math.random(),
+      speed: 0.8 + Math.random() * 0.4
+    }));
+
+    function render() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      // Scale coordinates to canvas
+      const scaleX = canvas.width / 750;
+      const scaleY = canvas.height / 520;
+
+      // 1. Draw Channels
+      for (let cid in circuit.channels) {
+        const ch = circuit.channels[cid];
+        const u = circuit.nodes[ch.from];
+        const v = circuit.nodes[ch.to];
+
+        const x1 = u.x * scaleX;
+        const y1 = u.y * scaleY;
+        const x2 = v.x * scaleX;
+        const y2 = v.y * scaleY;
+
+        // Channel outer glass wall
+        ctx.beginPath();
+        ctx.moveTo(x1, y1);
+        ctx.lineTo(x2, y2);
+        ctx.strokeStyle = 'rgba(56, 189, 248, 0.15)';
+        ctx.lineWidth = ch.width * 550000;
+        ctx.lineCap = 'round';
+        ctx.stroke();
+
+        // Fluid pressure gradient core
+        const grad = ctx.createLinearGradient(x1, y1, x2, y2);
+        const p1Ratio = Math.max(0, Math.min(1, u.p / circuit.drivingP));
+        const p2Ratio = Math.max(0, Math.min(1, v.p / circuit.drivingP));
+        grad.addColorStop(0, `rgba(244, 63, 94, ${0.15 + 0.4 * p1Ratio})`);
+        grad.addColorStop(1, `rgba(56, 189, 248, ${0.15 + 0.4 * p2Ratio})`);
+
+        ctx.strokeStyle = grad;
+        ctx.lineWidth = ch.width * 380000;
+        ctx.stroke();
+
+        // Channel labels & flow telemetry
+        const mx = (x1 + x2) / 2;
+        const my = (y1 + y2) / 2;
+        ctx.fillStyle = '#64748b';
+        ctx.font = '10px ui-monospace, monospace';
+        ctx.fillText(`${cid}`, mx - 20, my - 8);
+        const q_nL = (ch.flowRate * 1e12 * 60).toFixed(1); // nL/min
+        ctx.fillStyle = ch.droplets.length > 0 ? '#f43f5e' : '#38bdf8';
+        ctx.fillText(`${q_nL} nL/m`, mx - 20, my + 14);
+      }
+
+      // 2. Streamline particles
+      const cKeys = Object.keys(circuit.channels);
+      for (let p of particles) {
+        if (!p.chId || !circuit.channels[p.chId]) {
+          p.chId = cKeys[Math.floor(Math.random() * cKeys.length)];
+          p.frac = 0;
+        }
+        const ch = circuit.channels[p.chId];
+        const u = circuit.nodes[ch.from];
+        const v = circuit.nodes[ch.to];
+        p.frac += 0.008 * p.speed;
+        if (p.frac >= 1.0) {
+          p.chId = cKeys[Math.floor(Math.random() * cKeys.length)];
+          p.frac = 0;
+        }
+        const px = (u.x + (v.x - u.x) * p.frac) * scaleX;
+        const py = (u.y + (v.y - u.y) * p.frac) * scaleY;
+        ctx.beginPath();
+        ctx.arc(px, py, 1.5, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
+        ctx.fill();
+      }
+
+      // 3. Draw Nodes (Pores / Wells)
+      for (let nid in circuit.nodes) {
+        const n = circuit.nodes[nid];
+        const nx = n.x * scaleX;
+        const ny = n.y * scaleY;
+
+        ctx.beginPath();
+        ctx.arc(nx, ny, 8, 0, Math.PI * 2);
+        if (n.fixedP !== null) {
+          ctx.fillStyle = n.fixedP > 0 ? '#f43f5e' : '#10b981';
+        } else {
+          ctx.fillStyle = '#38bdf8';
+        }
+        ctx.fill();
+        ctx.strokeStyle = '#fff';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+
+        ctx.fillStyle = '#f1f5f9';
+        ctx.font = 'bold 11px ui-monospace, monospace';
+        ctx.fillText(nid.toUpperCase(), nx + 12, ny + 4);
+      }
+
+      // 4. Draw Droplets
+      for (let d of circuit.droplets) {
+        if (!d.active) continue;
+        const ch = circuit.channels[d.channelId];
+        const u = circuit.nodes[ch.from];
+        const v = circuit.nodes[ch.to];
+        const frac = Math.max(0, Math.min(1, d.pos / ch.length));
+
+        const dx = (u.x + (v.x - u.x) * frac) * scaleX;
+        const dy = (u.y + (v.y - u.y) * frac) * scaleY;
+
+        // Droplet body with surface tension glow
+        ctx.beginPath();
+        ctx.arc(dx, dy, 14, 0, Math.PI * 2);
+        const dropGrad = ctx.createRadialGradient(dx - 3, dy - 3, 2, dx, dy, 14);
+        dropGrad.addColorStop(0, '#ffffff');
+        dropGrad.addColorStop(0.3, d.color);
+        dropGrad.addColorStop(1, 'rgba(0,0,0,0.8)');
+        ctx.fillStyle = dropGrad;
+        ctx.shadowColor = d.color;
+        ctx.shadowBlur = 12;
+        ctx.fill();
+        ctx.shadowBlur = 0;
+
+        ctx.fillStyle = '#fff';
+        ctx.font = 'bold 10px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(d.label, dx, dy + 3);
+        ctx.textAlign = 'left';
+      }
+
+      // 5. Update Telemetry UI
+      updateTelemetryUI();
+    }
+
+    function updateTelemetryUI() {
+      // Calculate active bifurcation ratio
+      if (circuit.channels['ch_branch_or'] && circuit.channels['ch_branch_and']) {
+        const r_or = circuit.channels['ch_branch_or'].currentResistance;
+        const r_and = circuit.channels['ch_branch_and'].currentResistance;
+        const ratio = (r_or / r_and).toFixed(2);
+        const elRatio = document.getElementById('val-ratio');
+        elRatio.innerText = `${ratio}x`;
+        if (r_or > r_and) {
+          elRatio.style.color = 'var(--accent-rose)';
+          elRatio.innerText = `${ratio}x (流阻反转!)`;
+        } else {
+          elRatio.style.color = 'var(--accent-emerald)';
+          elRatio.innerText = `${(r_and/r_or).toFixed(2)}x (常态偏好)`;
+        }
+      }
+    }
+
+    function updateTruthUI() {
+      const orDrops = (circuit.outEvents['out_or'] || []).length;
+      const andDrops = (circuit.outEvents['out_and'] || []).length;
+      const sumDrops = (circuit.outEvents['out_sum'] || []).length;
+      const carryDrops = (circuit.outEvents['out_carry'] || []).length;
+      const notDrops = (circuit.outEvents['out_not'] || []).length;
+
+      const badge = document.getElementById('current-state-badge');
+      if (circuit.type === 'and_or') {
+        badge.innerText = `捕获: OR=${orDrops > 0 ? 1 : 0}, AND=${andDrops > 0 ? 1 : 0}`;
+      } else if (circuit.type === 'half_adder') {
+        badge.innerText = `加法器: Sum=${sumDrops > 0 ? 1 : 0}, Carry=${carryDrops > 0 ? 1 : 0}`;
+      } else if (circuit.type === 'not_gate') {
+        badge.innerText = `反相器: OUT=${notDrops > 0 ? 1 : 0}`;
+      }
+    }
+
+    function setupTruthTable(type) {
+      const th1 = document.getElementById('th-out1');
+      const th2 = document.getElementById('th-out2');
+      const tbody = document.getElementById('truth-tbody');
+
+      if (type === 'and_or') {
+        th1.innerText = 'OR (支路1)';
+        th2.innerText = 'AND (支路2)';
+        tbody.innerHTML = `
+          <tr><td>0</td><td>0</td><td>0</td><td>0</td><td>无液滴输入</td></tr>
+          <tr><td>1</td><td>0</td><td>1</td><td>0</td><td>首个液滴自然流向低阻支路</td></tr>
+          <tr><td>0</td><td>1</td><td>1</td><td>0</td><td>首个液滴自然流向低阻支路</td></tr>
+          <tr class="active-row"><td>1</td><td>1</td><td>1</td><td>1</td><td>流阻反转：第2液滴被强行分流</td></tr>
+        `;
+      } else if (type === 'not_gate') {
+        th1.innerText = 'NOT (直通)';
+        th2.innerText = 'DUMP (废弃)';
+        tbody.innerHTML = `
+          <tr class="active-row"><td>0</td><td>-</td><td>1</td><td>0</td><td>时钟液滴直通主输出端口</td></tr>
+          <tr><td>1</td><td>-</td><td>0</td><td>1</td><td>控制液滴引发侧桥高阻，时钟偏转</td></tr>
+        `;
+      } else if (type === 'half_adder') {
+        th1.innerText = 'SUM (XOR)';
+        th2.innerText = 'CARRY (AND)';
+        tbody.innerHTML = `
+          <tr><td>0</td><td>0</td><td>0</td><td>0</td><td>无运算输出</td></tr>
+          <tr><td>1</td><td>0</td><td>1</td><td>0</td><td>单液滴输出为 Sum=1</td></tr>
+          <tr><td>0</td><td>1</td><td>1</td><td>0</td><td>单液滴输出为 Sum=1</td></tr>
+          <tr class="active-row"><td>1</td><td>1</td><td>0</td><td>1</td><td>双液滴分流，进位 Carry=1</td></tr>
+        `;
+      }
+    }
+    setupTruthTable('and_or');
+
+    // UI Event Listeners
+    document.getElementById('circuit-select').addEventListener('change', (e) => {
+      const type = e.target.value;
+      const p = parseFloat(document.getElementById('slider-pressure').value);
+      const ratio = parseFloat(document.getElementById('slider-ratio').value);
+      circuit = new CircuitModel(type, p, ratio);
+      setupTruthTable(type);
+      logEvent(`切换芯片电路至: <b>${type.toUpperCase()}</b>`);
+    });
+
+    document.getElementById('btn-inject-a').addEventListener('click', () => {
+      const inCh = circuit.type === 'not_gate' ? 'ch_clk' : 'ch_in_a';
+      circuit.spawn(inCh, 'A', '#38bdf8');
+    });
+
+    document.getElementById('btn-inject-b').addEventListener('click', () => {
+      const inCh = circuit.type === 'not_gate' ? 'ch_ctrl' : 'ch_in_b';
+      circuit.spawn(inCh, 'B', '#f43f5e');
+    });
+
+    document.getElementById('btn-inject-both').addEventListener('click', () => {
+      if (circuit.type === 'not_gate') {
+        circuit.spawn('ch_clk', 'CLK', '#a855f7');
+        setTimeout(() => circuit.spawn('ch_ctrl', 'A', '#38bdf8'), 20);
+      } else {
+        circuit.spawn('ch_in_a', 'A', '#38bdf8');
+        circuit.spawn('ch_in_b', 'B', '#f43f5e');
+      }
+    });
+
+    document.getElementById('btn-clear').addEventListener('click', () => {
+      circuit.droplets = [];
+      circuit.outEvents = {};
+      for (let cid in circuit.channels) circuit.channels[cid].droplets = [];
+      circuit.solveFlow();
+      logEvent('芯片所有微通道与反应室已完成排空冲洗。');
+      updateTruthUI();
+    });
+
+    document.getElementById('btn-sound').addEventListener('click', (e) => {
+      sound.enabled = !sound.enabled;
+      e.target.innerText = sound.enabled ? '🔊 音效: 开' : '🔈 音效: 关';
+    });
+
+    document.getElementById('slider-pressure').addEventListener('input', (e) => {
+      const val = parseFloat(e.target.value);
+      document.getElementById('label-pressure').innerText = `${val} Pa`;
+      document.getElementById('val-pressure').innerText = `${(val / 1000).toFixed(2)} kPa`;
+      circuit.drivingP = val;
+      for (let nid in circuit.nodes) {
+        if (circuit.nodes[nid].fixedP && circuit.nodes[nid].fixedP > 0) {
+          circuit.nodes[nid].fixedP = val;
+        }
+      }
+      circuit.solveFlow();
+    });
+
+    document.getElementById('slider-ratio').addEventListener('input', (e) => {
+      const val = parseFloat(e.target.value);
+      document.getElementById('label-ratio').innerText = `${val.toFixed(2)}x`;
+      circuit.ratio = val;
+      circuit.solveFlow();
+    });
+
+    document.getElementById('slider-speed').addEventListener('input', (e) => {
+      speedMult = parseFloat(e.target.value);
+      document.getElementById('label-speed').innerText = `${speedMult.toFixed(1)}x`;
+    });
+
+    // Animation Loop
+    let lastTime = performance.now();
+    function loop(now) {
+      const dt = Math.min(0.033, (now - lastTime) / 1000.0) * speedMult;
+      lastTime = now;
+      circuit.step(dt);
+      render();
+      requestAnimationFrame(loop);
+    }
+    requestAnimationFrame(loop);
+  </script>
+</body>
+</html>
